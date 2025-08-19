@@ -6,7 +6,7 @@ def step_function(x: float):
 
 def perceptron_classification(X: List[List[float]], y: List[int], learning_rate: float = 0.01, epochs: int = 1500) -> Tuple[List[float], int]:
 
-    W = [0.1] * len(X[0])  # Initializing weights to zero
+    W = [0.01] * len(X[0])  # Initializing weights (value very close to zero)
     streak = 0
     e = 0
     while e < epochs and streak < len(X):
