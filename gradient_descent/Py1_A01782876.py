@@ -4,6 +4,27 @@ from numpy.typing import NDArray
 from typing import List
 
 
+"""
+Wrapper functions for grading
+"""
+def gradienteDescendente(X: List[float], y: List[float], theta: List[float] = [0.0, 0.0], alpha: float = 0.01, iteraciones: int = 1500) -> List[float]:
+    print("Initial cost:", calculaCosto(X, y, theta))
+    theta = linear_gradient_descent(X, y, theta, alpha, iteraciones)
+    print("Final cost:", calculaCosto(X, y, theta))
+    return theta
+
+
+def calculaCosto(X: List[float], y: List[float], theta: List[float]) -> float:
+    return calculate_error(X, y, theta)
+
+
+def graficaDatos(X: List[float], y: List[float], theta: List[float]) -> None:
+    __data_graph(X, y, theta)
+
+
+"""
+Helper functions for gradient descent algorithm
+"""
 def __read_dataset_from_txt(fileroute):
     X = []
     y = []
@@ -24,38 +45,17 @@ def __print_points_for_desmos(X: List[float], y: List[float]) -> None:
         print(f"({i}, {j})")
 
 
-def __h0(t0: float, t1: float, x: float) -> float:
-    return t0 + t1 * x
+def __testCases(theta: List[float]) -> None:
+    print(f"Prediction f(3.5): {__linear_estimate(theta[0], theta[1], 3.5)}")
+    print(f"Prediction f(7): {__linear_estimate(theta[0], theta[1], 7)}")
 
 
-def gradienteDescendente(X: List[float], y: List[float], theta: List[float] = [0.0, 0.0], alpha: float = 0.01, iteraciones: int = 1500) -> List[float]:
-    print("Initial cost:", calculaCosto(X, y, theta))
-
-    m = len(X)
-
-    for _ in range(iteraciones):
-        theta0 = theta[0] - alpha * (1/m) * sum([__h0(theta[0], theta[1], X[i]) - y[i] for i in range(m)])  # As in the final formula of slide number 32 in supervised learning linear regression
-        theta1 = theta[1] - alpha * (1/m) * sum([(__h0(theta[0], theta[1], X[i]) - y[i]) * X[i] for i in range(m)])
-        theta = [theta0, theta1]
-
-    print("Final cost:", calculaCosto(X, y, theta))
-    return theta
-
-
-def calculaCosto(X: List[float], y: List[float], theta: List[float]) -> float:
+def __data_graph(X: List[float], y: List[float], theta: List[float]) -> None:
     """
-    This function calculates the cost for linear regression using the mean squared error function (J)
-    Used ChatGPT5 for the numpy methods usage
+    Used GitHub Copilot code completions to create this scatter plot with the trained theta regression line
     """
-    m = len(y)
-    X_mat: NDArray = np.c_[np.ones(m), X] # adding a 1's column on the left of the X vector to turn it into a matrix
-    h: NDArray = X_mat @ theta # The @ operator in numpy equals a matrix multiplication (dot product)
-    return (1/m) * np.sum((h - y) ** 2)
-
-
-def graficaDatos(X: List[float], y: List[float], theta: List[float]) -> None:
     plt.scatter(X, y, color='blue', label='Food carts')
-    plt.plot(X, [__h0(theta[0], theta[1], x) for x in X], color='red', label='Linear regression by Gradient Descent')
+    plt.plot(X, [__linear_estimate(theta[0], theta[1], x) for x in X], color='red', label='Linear regression by Gradient Descent')
     plt.xlabel('Population')
     plt.ylabel('Earnings')
     plt.title('Linear Regression')
@@ -63,7 +63,23 @@ def graficaDatos(X: List[float], y: List[float], theta: List[float]) -> None:
     plt.show()
 
 
-def __calculaCostoForLoop(X: List[float], y: List[float], theta: List[float]) -> float:
+def __linear_estimate(t0: float, t1: float, x: float) -> float:
+    return t0 + t1 * x
+
+
+"""
+Linear gradient descent functions
+"""
+def linear_gradient_descent(X: List[float], y: List[float], theta: List[float] = [0.0, 0.0], alpha: float = 0.01, learning_rate: int = 1500) -> List[float]:
+    m = len(X)
+    for _ in range(learning_rate):
+        theta0 = theta[0] - alpha * (1/m) * sum([__linear_estimate(theta[0], theta[1], X[i]) - y[i] for i in range(m)])  # As in the final algorithm of slide number 32 in supervised learning linear regression
+        theta1 = theta[1] - alpha * (1/m) * sum([(__linear_estimate(theta[0], theta[1], X[i]) - y[i]) * X[i] for i in range(m)])
+        theta = [theta0, theta1]
+    return theta
+
+
+def calculate_error(X: List[float], y: List[float], theta: List[float]) -> float:
     """
     This function is equal to doing the operations with matrixes, but instead is using a for loop
 
@@ -81,12 +97,11 @@ def __calculaCostoForLoop(X: List[float], y: List[float], theta: List[float]) ->
 def main():
     X, y = __read_dataset_from_txt("ex1data1.txt")
 
-    # graficaDatos(X, y, [0.0, 0.0])  # Initial plot with theta = [0, 0]
+    trained_theta = linear_gradient_descent(X, y)
 
-    # __print_points_for_desmos(X, y)
-    trained_theta = gradienteDescendente(X, y)
+    __testCases(trained_theta)
 
-    graficaDatos(X, y, trained_theta)  # Plot with the trained theta
+    __data_graph(X, y, trained_theta)  # Plot with the trained theta
 
 
 if __name__ == '__main__':
