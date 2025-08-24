@@ -35,7 +35,7 @@ def __read_dataset_from_txt(fileroute):
                 try:
                     X.append(float(parts[0]))
                     y.append(float(parts[1]))
-                except (ValueError, UnicodeDecodeError, Exception):
+                except (ValueError, UnicodeDecodeError, Exception): # used GitHub copilot completions to determine the possible exception types
                     continue
     return X, y
 
