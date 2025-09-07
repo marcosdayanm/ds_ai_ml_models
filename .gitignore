@@ -209,3 +209,7 @@ __marimo__/
 
 # MacOS
 .DS_Store
+
+
+# Datasets
+exclude_dataset/
