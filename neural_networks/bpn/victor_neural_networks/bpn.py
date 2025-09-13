@@ -132,10 +132,10 @@ def entrenaRN(input_layer_size: int,
       W1, b1, W2, b2, history (costo y accuracy por época para graficar)
     """
     # Inicialización de pesos
-    W1 = randInicializacionPesos(input_layer_size, hidden_layer_size, epsilon=0.12)  # (25,400)
-    b1 = np.zeros(hidden_layer_size, dtype=np.float64)                                        # (25,)
-    W2 = randInicializacionPesos(hidden_layer_size, num_labels, epsilon=0.12)       # (10,25)
-    b2 = np.zeros(num_labels, dtype=np.float64)                                              # (10,)
+    W1 = randInicializacionPesos(input_layer_size, hidden_layer_size, epsilon=0.12)
+    b1 = np.zeros(hidden_layer_size, dtype=np.float64)                         
+    W2 = randInicializacionPesos(hidden_layer_size, num_labels, epsilon=0.12)    
+    b2 = np.zeros(num_labels, dtype=np.float64)                             
 
     # One-hot para y
     Y = one_hot_y(y, num_labels)  # (m,10)
