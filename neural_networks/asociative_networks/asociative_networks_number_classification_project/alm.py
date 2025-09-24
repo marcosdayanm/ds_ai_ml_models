@@ -3,7 +3,7 @@
 from typing import List, Tuple
 import numpy as np
 
-from img_to_vector import load_labeled_vectors_alm
+from img_to_vector import load_labeled_vectors_alm, plot_matrix
 
 
 class ALM:
@@ -52,6 +52,7 @@ def alm_predict_label_onehot(alm: ALM, x01: np.ndarray, label_names: List[str]) 
     x01: vector columna (N,1) con bits 0/1 de la imagen
     Devuelve la etiqueta (string) según argmax del vector de salida.
     """
+    plot_matrix(x01.reshape(int(np.sqrt(alm.W.shape[1])), -1))
     y = alm.predict(x01.copy())  # tu predict hace umbral y regresa 0/1
     idx = int(np.argmax(y))
     return y, label_names[idx]
@@ -84,4 +85,4 @@ if __name__ == "__main__":
         print(f"Esperado: {lbl}, Predicho: {pred_lbl}")
         correct += int(pred_lbl == lbl)
 
-    print(f"Accuracy: {correct/len(X_test):.3f}")
+    print(f"Accuracy ({len(X_test)} muestras): {(correct/len(X_test))*100:.2f}%")

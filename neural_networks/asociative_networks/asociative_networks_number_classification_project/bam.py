@@ -1,6 +1,6 @@
 from typing import List
 import numpy as np
-from img_to_vector import load_labeled_vectors_bam
+from img_to_vector import load_labeled_vectors_bam, plot_matrix
 
 
 class BAM:
@@ -32,6 +32,7 @@ class BAM:
 
 
 def bam_predict_label(bam, x_vec, label_names):
+    plot_matrix(x_vec.reshape(int(np.sqrt(bam.n_in)), -1))
     y = bam.predict(x_vec)
     y = np.asarray(y).ravel()
     idx = int(np.argmax(y))
@@ -41,10 +42,10 @@ def bam_predict_label(bam, x_vec, label_names):
 
 if __name__ == "__main__":
     X_train, Y_train, _, label_to_index, label_names = load_labeled_vectors_bam(
-        root="number_dataset", img_side_size=28, color_threshold=160, per_label_max=3
+        root="number_dataset", img_side_size=28, color_threshold=160, per_label_max=1
     )
     X_test, Y_test, test_labels, _, _ = load_labeled_vectors_bam(
-        root="number_dataset", img_side_size=28, color_threshold=160, per_label_max=2
+        root="number_dataset", img_side_size=28, color_threshold=160, per_label_max=1
     )
 
     # Entrenar BAM
@@ -57,4 +58,4 @@ if __name__ == "__main__":
         print(f"Esperado: {lbl}, Predicho: {pred_lbl}")
         correct += int(pred_lbl == lbl)
 
-    print(f"Accuracy: {correct/len(X_test):.3f}")
+    print(f"Accuracy ({len(X_test)} muestras): {(correct/len(X_test))*100:.2f}%")

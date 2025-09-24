@@ -47,6 +47,7 @@ class HopfieldNetwork:
         return x, max_iterations, False
 
     def classify_digit(self, pattern: np.ndarray, expected_result: int):
+        plot_matrix(pattern.reshape(int(np.sqrt(self.n_neurons)), -1))
         recovered, iterations, converged = self._converge(pattern)
         if not converged:
             print(f"No convergió tras {iterations} iteraciones")
@@ -57,7 +58,8 @@ class HopfieldNetwork:
         pred_idx = int(np.argmax(sims_abs))
         pred_label = self.labels[pred_idx]
         
-        # plot_matrix(recovered.reshape(int(np.sqrt(self.n_neurons)), -1))
+
+        plot_matrix(recovered.reshape(int(np.sqrt(self.n_neurons)), -1))
 
         return pred_label, recovered, iterations
 
@@ -86,5 +88,5 @@ if __name__ == "__main__":
         if pred == test_labels[i]:
             correct += 1
         print(f"Pred: {pred}, Esperado: {test_labels[i]}")
-    accuracy = correct / len(idxs)
-    print(f"Precisión aleatoria ({len(idxs)} muestras): {accuracy:.3f}")
+    accuracy = (correct / len(idxs))*100
+    print(f"Accuracy ({len(idxs)} muestras): {accuracy:.2f}%")
