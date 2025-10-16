@@ -40,13 +40,13 @@ def Q_matrix(lenght_features):
     Q = np.eye(lenght_features)
     for i in range(lenght_features):
         if (i+1)%2 == 0:
-            Q[i,i] = 0.0
+            Q[i,i] = 0.01
         else:
-            Q[i,i] = 0.000
+            Q[i,i] = 0.0001
     return Q
 
 def R_matrix(lenght_features):
-    R = np.eye(lenght_features) * 0.019
+    R = np.eye(lenght_features) * 0.5
     return R
 
 def x_state(lenght_features,data):
@@ -152,7 +152,7 @@ def kalman(data,F,H,Q,R,XO,SO):
         
     
 
-data = lector_csv("User1_Pre2.csv",["AF3","F7","F3","FC5","T7","P7","O1","O2","P8","T8","FC6"])
+data = lector_csv("User1_Pre2.csv",["AF4","F8","F4"])
 lenght_features = data.shape[1]
 A = A_matrix(lenght_features)
 F = taylor_series(2,A,128) #
@@ -166,7 +166,6 @@ S = S_matrix(P) #
 X_est = kalman(data,F,H,Q,R,X,S)
 #print("---- ESTIMACIÓN COMPLETA ----")
 #print(X_est)
-
 
 plt.figure(figsize=(12,6))
 for i, col in enumerate(data.columns):
