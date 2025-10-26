@@ -13,7 +13,6 @@ import matplotlib.pyplot as plt
 import random
 import time
 import pickle
-import argparse
 
 class SoftmaxEnv(MiniGridEnv):
     """Agente Policy Gradient con Softmax para MiniGrid"""
@@ -30,14 +29,10 @@ class SoftmaxEnv(MiniGridEnv):
         self.logits = logits
         self.history = []
         
-        # Hiperparámetros Policy Gradient
-        self.gamma = 0.95                # factor de descuento
-        self.temperature = 3.0           # temperatura para softmax (exploración)
-        self.baseline = 0.0              # baseline para reducir varianza
-        self.baseline_alpha = 0.1        # tasa de actualización del baseline
-        self.policy_alpha = 0.1          # tasa de aprendizaje de política
-        self.temperature_decay = 0.995   # decay de temperatura
-        self.temperature_min = 0.3       # temperatura mínima
+        # Hiperparámetros Policy Gradient, funcionan para un grid 10x10
+        self.gamma = 0.99# factor de descuento
+        self.alpha = 0.01  # learning rate
+        self.baseline = 0.0  # baseline para reducir varianza
         self.episodes = episodes
 
         self.agent_pos = (1, 1)
@@ -45,7 +40,7 @@ class SoftmaxEnv(MiniGridEnv):
         mission_space = MissionSpace(mission_func=self._gen_mission)
         
         if max_steps is None:
-            max_steps = 3 * size**2
+            max_steps = 5 * size**2
         
         super().__init__(
             mission_space=mission_space,
@@ -63,7 +58,6 @@ class SoftmaxEnv(MiniGridEnv):
         self.grid = Grid(width, height)
         self.grid.wall_rect(0, 0, width, height)
         
-        # Place a goal square in the bottom-right corner
         self.goal_pos = (width - 2, height - 2)
         self.put_obj(Goal(), *self.goal_pos)
         
@@ -91,33 +85,31 @@ class SoftmaxEnv(MiniGridEnv):
         prev_dir = self.agent_dir
         obs, reward, terminated, truncated, info = super().step(action)
 
-        # Penalización por movimiento normal
-        if self.grid.get(*self.agent_pos) is None:
-            reward = -0.05
+        # base por movimiento
+        reward = -0.01
         
-        # Recompensa por acercarse a la meta (distancia Manhattan)
-        goal_distance = abs(self.agent_pos[0] - self.goal_pos[0]) + abs(self.agent_pos[1] - self.goal_pos[1])
-        prev_distance = abs(prev_pos[0] - self.goal_pos[0]) + abs(prev_pos[1] - self.goal_pos[1])
-        
-        if goal_distance < prev_distance:
-            reward = float(reward) + 0.1  # Bonus por acercarse
-        elif goal_distance > prev_distance:
-            reward = float(reward) - 0.05  # Penalización por alejarse
 
-        # Penalización por chocar contra pared
+        goal_distance = abs(self.agent_pos[0] - self.goal_pos[0]) + abs(self.agent_pos[1] - self.goal_pos[1])
+        prev_distance = abs(prev_pos[0] - self.goal_pos[0]) + abs(prev_pos[1] - self.goal_pos[1])        
+        if goal_distance < prev_distance:
+            reward += 0.3
+        elif goal_distance > prev_distance:
+            reward -= 0.2
+
+        # premio por chocar contra pared
         if prev_dir == self.agent_dir and prev_pos == self.agent_pos:
-            reward = -1.0
+            reward = -0.5
         
-        # Recompensa por llegar a la meta
+        # premio por llegar a la meta
         if isinstance(self.grid.get(*self.agent_pos), Goal):
-            reward = 100
+            reward = 50.0
             terminated = True
-            # print("🎯 Reached the goal!")
+            # print("Reached the goal")
         
         return obs, reward, terminated, truncated, info
     
     def get_logits(self, state) -> np.ndarray:
-        """Obtiene los logits para un estado"""
+        """Get logits for a given state"""
         if state not in self.logits:
             self.logits[state] = np.zeros(len(self.actions))
         return self.logits[state]
@@ -126,83 +118,80 @@ class SoftmaxEnv(MiniGridEnv):
         return (self.agent_pos[0], self.agent_pos[1], self.agent_dir)
     
     def softmax(self, logits: np.ndarray) -> np.ndarray:
-        """Convierte logits a probabilidades con softmax"""
-        exp_logits = np.exp((logits - np.max(logits)) / self.temperature)
+        """Compute softmax probabilities from logits."""
+        exp_logits = np.exp(logits - np.max(logits))
         return exp_logits / np.sum(exp_logits)
     
     def train(self):
-        """Entrena el agente con Policy Gradient + Softmax"""
         for ep in range(self.episodes):
-            obs = self.reset()
+            self.reset()
             done = False
             truncated = False
             total_reward = 0.0
-            episode_transitions = []  # (estado, acción, recompensa, probs)
+            episode_data = []  # (estado, acción, recompensa)
 
+            # 1 generar episodio completo
             while not (done or truncated):
                 state = self.get_state()
                 logits = self.get_logits(state)
                 probs = self.softmax(logits)
                 
-                # Muestrear acción según probabilidades softmax
+                # Muestrear acción de la política
                 action = np.random.choice(len(self.actions), p=probs)
                 
-                obs, reward, done, truncated, info = self.step(action)
+                obs, reward, done, truncated, info = self.step(action)  #type: ignore
                 
-                episode_transitions.append((state, action, float(reward), probs.copy()))
+                episode_data.append((state, action, float(reward)))
                 total_reward += float(reward)
             
-            # Actualizar baseline con media móvil
-            self.baseline = (1 - self.baseline_alpha) * self.baseline + self.baseline_alpha * total_reward
-            
-            # Calcular returns (recompensas acumuladas desde cada paso)
+            # 2 calcular returns G_t para cada paso t
             returns = []
             G = 0.0
-            for i in range(len(episode_transitions) - 1, -1, -1):
-                _, _, reward, _ = episode_transitions[i]
+            for i in range(len(episode_data) - 1, -1, -1):
+                _, _, reward = episode_data[i]
                 G = reward + self.gamma * G
                 returns.insert(0, G)
             
-            # Normalizar returns para reducir varianza
-            if len(returns) > 1:
-                returns = np.array(returns)
-                returns = (returns - returns.mean()) / (returns.std() + 1e-8)
-            else:
-                returns = np.array(returns)
+            # 3actualizar baseline (promedio de returns del episodio)
+            episode_return = np.mean(returns)
+            self.baseline = 0.9 * self.baseline + 0.1 * episode_return
             
-            # Actualizar logits usando returns normalizados
-            for idx, (state, action, _, probs) in enumerate(episode_transitions):
-                advantage = returns[idx]
+            # 4 actualizar parámetros θ (logits) usando policy gradient
+            for t, (state, action, _) in enumerate(episode_data):
+                G_t = returns[t]
+                advantage = G_t - self.baseline  # reducir varianza con baseline
                 
-                # Actualización de gradiente de política
+                # Recalcular probabilidades para este estado
+                logits = self.get_logits(state)
+                probs = self.softmax(logits)
+                
                 for a in range(len(self.actions)):
                     if a == action:
-                        # Refuerza la acción tomada
-                        self.logits[state][a] += self.policy_alpha * advantage * (1 - probs[a])
+                        grad_log_pi = 1 - probs[a]
                     else:
-                        # Debilita otras acciones
-                        self.logits[state][a] -= self.policy_alpha * advantage * probs[a]
+                        grad_log_pi = -probs[a]
+                    
+                    self.logits[state][a] += self.alpha * grad_log_pi * advantage
             
-            # Decay de temperatura
-            self.temperature = max(self.temperature_min, self.temperature * self.temperature_decay)
-            
+            # Registro
             self.history.append({
                 "episode": ep + 1,
                 "baseline": self.baseline,
-                "temperature": self.temperature,
                 "total_reward": total_reward,
+                "episode_return": episode_return,
                 "states_learned": len(self.logits),
                 "reached_goal": done,
                 "truncated": truncated
             })
             status = "GOAL" if done else "TIMEOUT"
             if not done:
-                print(f"Ep {ep+1}: Reward={total_reward:.2f}, Temp={self.temperature:.2f}, Baseline={self.baseline:.2f} {status}")
+                print(f"Ep {ep+1}: Reward={total_reward:.2f}, G_avg={episode_return:.2f}, Baseline={self.baseline:.2f} {status}")
 
     def plot_history(self):
         df = pd.DataFrame(self.history)
         plt.figure(figsize=(14, 5))
         
+        # Reward total
         plt.subplot(1, 3, 1)
         plt.plot(df["episode"], df["total_reward"], label="Total Reward", alpha=0.7)
         plt.xlabel("Episode")
@@ -211,14 +200,17 @@ class SoftmaxEnv(MiniGridEnv):
         plt.legend()
         plt.grid(True)
         
+        # Episode returns vs Baseline
         plt.subplot(1, 3, 2)
-        plt.plot(df["episode"], df["baseline"], label="Baseline", color='red', alpha=0.7)
+        plt.plot(df["episode"], df["episode_return"], label="G_t (Return)", alpha=0.6, color='green')
+        plt.plot(df["episode"], df["baseline"], label="Baseline (b)", color='red', linewidth=2)
         plt.xlabel("Episode")
         plt.ylabel("Baseline")
         plt.title("Baseline Evolution")
         plt.legend()
         plt.grid(True)
         
+        # Tasa de éxito
         plt.subplot(1, 3, 3)
         plt.plot(df["episode"], df["temperature"], label="Temperature", color='orange', alpha=0.7)
         plt.xlabel("Episode")
@@ -229,13 +221,19 @@ class SoftmaxEnv(MiniGridEnv):
         
         plt.tight_layout()
         plt.show()
+        
+        # Estadísticas finales
+        print(f"Total de Episodios: {len(df)}")
+        print(f"Tasa de Éxito: {df['reached_goal'].mean() * 100:.2f}%")
+        print(f"Recompensa Promedio: {df['total_reward'].mean():.2f} ± {df['total_reward'].std():.2f}")
+        print(f"Baseline Final: {self.baseline:.2f}")
+        print(f"Estados Aprendidos: {len(self.logits)}")
     
     def dump_model(self, filename: str = "policy_gradients_data.pkl"):
         """Saves the model"""
         data_to_save = {
             "logits": self.logits,
             "baseline": self.baseline,
-            "temperature": self.temperature,
             "size": self.size,
         }
         
@@ -252,8 +250,8 @@ class SoftmaxEnv(MiniGridEnv):
             self.logits = data["logits"]
         if "baseline" in data:
             self.baseline = data["baseline"]
-        if "temperature" in data:
-            self.temperature = data["temperature"]
+        if "size" in data:
+            self.size = data["size"]
         
         print(f"Model loaded from {filename}")
 
@@ -269,67 +267,30 @@ class SoftmaxEnv(MiniGridEnv):
                 logits = self.get_logits(state)
                 probs = self.softmax(logits)
                 action = np.random.choice(len(self.actions), p=probs)
-                obs, reward, done, truncated, info = self.step(action)
+                obs, reward, done, truncated, info = self.step(action)  #type: ignore
                 time.sleep(0.05)
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Train and test a Policy Gradient (softmax) agent in MiniGrid")
-    
-    parser.add_argument(
-        "--plot-history", "-ph",
-        action="store_true",
-        help="Plot the training history after training"
-    )
-    
-    parser.add_argument(
-        "--skip-testing", "-stt",
-        action="store_true",
-        help="Skip testing the agent with human-visible rendering"
-    )
-    
-    parser.add_argument(
-        "--size", "-s",
-        type=int,
-        default=10,
-        help="Grid size (default: 10)"
-    )
-    
-    parser.add_argument(
-        "--episodes", "-e",
-        type=int,
-        default=2000,
-        help="Number of training episodes (default: 2000, softmax needs more episodes)"
-    )
-    
-    parser.add_argument(
-        "--model", "-m",
-        type=str,
-        default="policy_gradients_data.pkl",
-        help="Filename for saving/loading model (default: policy_gradients_data.pkl)"
-    )
-    
-    parser.add_argument(
-        "--skip-training", "-st",
-        action="store_true",
-        help="Skip training the model"
-    )
-    
-    args = parser.parse_args()
+    plot_history = False
+    skip_training = False
+    skip_testing = False
+    size = 10
+    episodes = 2000
 
     # Training
-    if not args.skip_training:
-        print(f"Training Policy Gradient (softmax) agent for {args.episodes} episodes on {args.size}x{args.size} grid...")
-        env = SoftmaxEnv(render_mode=None, size=args.size, episodes=args.episodes)
+    if not skip_training:
+        print(f"Training Policy Gradient (softmax) agent for {episodes} episodes on {size}x{size} grid...")
+        env = SoftmaxEnv(render_mode=None, size=size, episodes=episodes)
         env.train()
-        env.dump_model(args.model)
+        env.dump_model()
         
-        if args.plot_history:
+        if plot_history:
             env.plot_history()
 
     # Testing
-    if not args.skip_testing:
+    if not skip_testing:
         print(f"\nTesting agent with human rendering...")
-        env_human = SoftmaxEnv(size=args.size)
-        env_human.load_model(args.model)
+        env_human = SoftmaxEnv(size=size)
+        env_human.load_model()
         env_human.test_human()
