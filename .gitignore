@@ -213,3 +213,9 @@ __marimo__/
 
 # Datasets
 exclude_dataset/
+DL_Data_sets/
+
+
+# logs
+logs/
+lightning_logs/
